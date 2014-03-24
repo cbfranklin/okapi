@@ -10,12 +10,6 @@ var server = Hapi.createServer('0.0.0.0', +process.env.PORT || 3000);
 
 var controller = {};
 
-controller.helloWorld = {
-    handler: function(req) {
-        req.reply('<h1>HELLOKAPI</h1>');
-    }
-};
-
 controller.api = {};
 
 controller.api.keyValue = {
@@ -26,7 +20,7 @@ controller.api.keyValue = {
 
         console.log(key, value);
 
-        Fs.readFile('./' + api + '.json', 'utf8', function(err, data) {
+        Fs.readFile('./data/' + api + '/' + api + '.json', 'utf8', function(err, data) {
             if (err) {
                 console.log('Error: ' + err);
                 return;
@@ -65,7 +59,7 @@ controller.api.queryString = {
 
             console.log(api, query);
 
-            Fs.readFile('./' + api + '.json', 'utf8', function(err, data) {
+            Fs.readFile('./data/' + api + '/' + api + '.json', 'utf8', function(err, data) {
                 if (err) {
                     console.log('Error: ' + err);
                     return;
@@ -111,7 +105,7 @@ server.route({
     method: 'GET',
     path: '/',
     handler: function(req, reply) {
-        reply('<h1>OKAPI is nothing at the moment.</h1>');
+        reply('<h1>OKAPI</h1>');
     }
 });
 
@@ -125,22 +119,22 @@ server.route({
         },
         handler: function(req, reply) {
             var fileName = req.payload.name.toLowerCase().replace(/ /g, '-');
-            Fs.mkdir('./' + fileName)
-            req.payload.file /*.pipe(Zlib.createGunzip())*/ .pipe(Fs.createWriteStream('./' + fileName + '.csv'));
+            Fs.mkdir('./data/' + fileName)
+            req.payload.file /*.pipe(Zlib.createGunzip())*/ .pipe(Fs.createWriteStream('./data/' + fileName + '/' + fileName + '.csv'));
             console.log(fileName);
 
             reply('<h1>OKAPI</h1><p>Your new API Lives <a href="http://localhost:3000/api/' + fileName + '">Here</a>.</p>');
 
             var Converter = require("csvtojson").core.Converter;
 
-            var csvFileName = './' + fileName + '.csv';
+            var csvFileName = './data/' + fileName + '.csv';
 
             var csvConverter = new Converter();
 
             csvConverter.on("end_parsed", function(jsonObj) {
                 console.log('CONVERTED TO JSON')
                 jsonObj = JSON.stringify(jsonObj);
-                Fs.writeFile('./' + fileName + '.json', jsonObj, function(err) {
+                Fs.writeFile('./data/' + fileName + '/' + fileName + '.json', jsonObj, function(err) {
                     if (err) {
                         console.log(err);
                     } else {
