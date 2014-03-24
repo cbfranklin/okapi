@@ -1,8 +1,6 @@
 var Hapi = require('hapi');
 var Handlebars = require('handlebars');
 var Fs = require('fs');
-//var Multiparty = require('multiparty');
-//var Zlib = require('zlib')
 
 console.log('hellokapi');
 
@@ -18,7 +16,7 @@ controller.api.keyValue = {
             key = req.params.key,
             value = req.params.value;
 
-        console.log(key, value);
+        console.log(api, '{ ' + key + ': \'' + value + '\' }');
 
         Fs.readFile('./data/' + api + '/' + api + '.json', 'utf8', function(err, data) {
             if (err) {
@@ -30,7 +28,8 @@ controller.api.keyValue = {
                 meta: {
                     name: api,
                     source: 'OKAPI',
-                    query: {}
+                    query: {},
+                    totalResults: 0
                 },
                 results: [],
             }
@@ -40,6 +39,7 @@ controller.api.keyValue = {
             for (i = 0; i < data.csvRows.length; i++) {
                 if (data.csvRows[i][key] === value) {
                     results.results.push(data.csvRows[i]);
+                    results.meta.totalResults += 1;
                 }
             }
             reply(results);
@@ -69,7 +69,8 @@ controller.api.queryString = {
                     meta: {
                         name: api,
                         source: 'OKAPI',
-                        query: query
+                        query: query,
+                        totalResults: 0
                     },
                     results: [],
                 }
@@ -89,6 +90,7 @@ controller.api.queryString = {
                         }
                         if (match) {
                             results.results.push(data.csvRows[i]);
+                            results.meta.totalResults += 1;
                         }
                     }
                 };
@@ -127,7 +129,7 @@ server.route({
 
             var Converter = require("csvtojson").core.Converter;
 
-            var csvFileName = './data/' + fileName + '.csv';
+            var csvFileName = './data/' + fileName + '/' + fileName + '.csv';
 
             var csvConverter = new Converter();
 
@@ -168,6 +170,8 @@ server.route({
             '<script src="http://cdn.njosnavel.in/js/dropzone.min.js"></script>' +
             '<script src="http://cdn.njosnavel.in/framework/bootstrap3/js/bootstrap.min.js"></script>' +
             '<link rel="stylesheet" href="http://cdn.njosnavel.in/framework/bootstrap3/css/bootstrap-container-new.min.css"/>' +
+
+            '<h1>OKAPI</h1><p>Upload a .CSV</p>' +
 
             '<form action="/uploader" method="post" enctype="multipart/form-data">' +
             '<label for="name">Name</label><input name="name" type="text">' +
