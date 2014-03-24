@@ -34,10 +34,15 @@ controller.api.keyValue = {
             data = JSON.parse(data);
             var results = {
                 meta: {
-                    source: 'OKAPI'
+                    name: api,
+                    source: 'OKAPI',
+                    query: {}
                 },
                 results: [],
             }
+
+            results.meta.query[key] = value;
+
             for (i = 0; i < data.csvRows.length; i++) {
                 if (data.csvRows[i][key] === value) {
                     results.results.push(data.csvRows[i]);
@@ -68,24 +73,26 @@ controller.api.queryString = {
                 data = JSON.parse(data);
                 var results = {
                     meta: {
-                        source: 'OKAPI'
+                        name: api,
+                        source: 'OKAPI',
+                        query: query
                     },
                     results: [],
                 }
 
                 Array.prototype.find = function(obj) {
-                    // Loop through array
+
                     for (var i = 0, len = this.length; i < len; i++) {
+
                         var ele = this[i],
                             match = true;
-                        // Check each object
+
                         for (var x in obj) {
                             if (ele[x] !== obj[x]) {
                                 match = false;
                                 break;
                             }
                         }
-                        // Did it match?
                         if (match) {
                             results.results.push(data.csvRows[i]);
                         }
@@ -118,23 +125,19 @@ server.route({
         },
         handler: function(req, reply) {
             var fileName = req.payload.name.toLowerCase().replace(/ /g, '-');
+            Fs.mkdir('./' + fileName)
             req.payload.file /*.pipe(Zlib.createGunzip())*/ .pipe(Fs.createWriteStream('./' + fileName + '.csv'));
             console.log(fileName);
 
             reply('<h1>OKAPI</h1><p>Your new API Lives <a href="http://localhost:3000/api/' + fileName + '">Here</a>.</p>');
 
-            //Converter Class
             var Converter = require("csvtojson").core.Converter;
 
-            //CSV File Path or CSV String or Readable Stream Object
             var csvFileName = './' + fileName + '.csv';
 
-            //new converter instance
             var csvConverter = new Converter();
 
-            //end_parsed will be emitted once parsing finished
             csvConverter.on("end_parsed", function(jsonObj) {
-                console.log(jsonObj); //here is your result json object
                 console.log('CONVERTED TO JSON')
                 jsonObj = JSON.stringify(jsonObj);
                 Fs.writeFile('./' + fileName + '.json', jsonObj, function(err) {
@@ -145,7 +148,7 @@ server.route({
                     }
                 });
             });
-            //read from file
+
             csvConverter.from(csvFileName);
         }
     }
