@@ -6,6 +6,14 @@ console.log('hellokapi');
 
 var server = Hapi.createServer('0.0.0.0', +process.env.PORT || 3000);
 
+server.views({
+    engines: {
+        html: 'handlebars'
+    },
+    path: 'templates',
+    layout: false
+});
+
 var controller = {};
 
 controller.api = {};
@@ -107,7 +115,7 @@ server.route({
     method: 'GET',
     path: '/',
     handler: function(req, reply) {
-        reply('<h1>OKAPI</h1>');
+        reply('<h1>OKAPI</h1><ul><li><a href="/api">See Available APIs</a></li><li><a href="/upload">Upload a .CSV</a></li>');
     }
 });
 
@@ -125,7 +133,7 @@ server.route({
             req.payload.file /*.pipe(Zlib.createGunzip())*/ .pipe(Fs.createWriteStream('./data/' + fileName + '/' + fileName + '.csv'));
             console.log(fileName);
 
-            reply('<h1>OKAPI</h1><p>Your new API Lives <a href="http://localhost:3000/api/' + fileName + '">Here</a>.</p>');
+            reply('<h1>OKAPI</h1><p>Your new API Lives <a href="/api/' + fileName + '">Here</a>.</p>');
 
             var Converter = require("csvtojson").core.Converter;
 
@@ -160,6 +168,30 @@ server.route({
     path: '/api/{api}',
     method: 'GET',
     config: controller.api.queryString
+});
+
+server.route({
+    path: '/api',
+    method: 'GET',
+    handler: function(req, reply) {
+        var api = [];
+        Fs.readdir('./data', function(err, files) {
+            if (err) throw err;
+            files.forEach(function(file) {
+                if (file.indexOf('.') === -1) {
+                    api.push(file);
+                }
+            });
+        });
+
+        if (api.length === 0) {
+            reply('<h1>OKAPI</h1><h2>No APIs Available</h2>')
+        } else {
+            reply.view('api-index.html', {
+                api: api
+            });
+        }
+    }
 });
 
 server.route({
