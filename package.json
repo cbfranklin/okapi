@@ -1,0 +1,11 @@
+{
+  "name": "okapi",
+  "version": "0.0.1",
+  "description": "CSV to JSON API",
+  "main": "okapi.js",
+  "scripts": {
+    "test": "test"
+  },
+  "author": "Connor Franklin",
+  "license": "BSD-2-Clause"
+}
