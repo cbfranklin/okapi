@@ -82,20 +82,45 @@ controller.api.queryString = {
                     },
                     results: [],
                 }
-
+                //FIND IN ARRAY OF OBJECTS
                 Array.prototype.find = function(obj) {
 
                     for (var i = 0, len = this.length; i < len; i++) {
-
                         var ele = this[i],
                             match = true;
 
+                        //SEE IF KEY CONTAINS WILDCARD
                         for (var x in obj) {
-                            if (ele[x] !== obj[x]) {
-                                match = false;
-                                break;
+                            if (obj[x].toString().substr(obj[x].length - 1) === '*') {
+                                //WILDCARD AT BEGINNING AND END (CONTAINS)
+                                if (obj[x].toString().substr(0, 1) === '*') {
+                                    //IF SO, REMOVE WILDCARDS
+                                    var newKey = obj[x].replace(/\*/g, '');
+                                    //BUILD REGEX
+                                    var regex = new RegExp(newKey);
+                                    //MATCH AGAINST REGEX
+                                    if (ele[x].match(regex) < 1) {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                                //WILDCARD AT END ONLY
+                                else {
+                                    var newKey = obj[x].replace('*', '');
+                                    var regex = new RegExp('^' + newKey);
+                                    if (ele[x].match(regex) < 1) {
+                                        match = false;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                if (ele[x] !== obj[x]) {
+                                    match = false;
+                                    break;
+                                }
                             }
                         }
+
                         if (match) {
                             results.results.push(data.csvRows[i]);
                             results.meta.totalResults += 1;
@@ -169,26 +194,27 @@ server.route({
     method: 'GET',
     config: controller.api.queryString
 });
-
 server.route({
     path: '/api',
     method: 'GET',
     handler: function(req, reply) {
-        var api = [];
+        var apiName = [];
         Fs.readdir('./data', function(err, files) {
             if (err) throw err;
             files.forEach(function(file) {
                 if (file.indexOf('.') === -1) {
-                    api.push(file);
+                    apiName.push({
+                        name: file
+                    });
                 }
             });
         });
 
-        if (api.length === 0) {
+        if (apiName.length === -1) {
             reply('<h1>OKAPI</h1><h2>No APIs Available</h2>')
         } else {
             reply.view('api-index.html', {
-                api: api
+                api: apiName
             });
         }
     }
@@ -198,12 +224,7 @@ server.route({
     method: 'GET',
     path: '/upload',
     handler: function(req, reply) {
-        reply('<script src="http://cdn.njosnavel.in/js/jquery.gsa.js"></script>' +
-            '<script src="http://cdn.njosnavel.in/js/dropzone.min.js"></script>' +
-            '<script src="http://cdn.njosnavel.in/framework/bootstrap3/js/bootstrap.min.js"></script>' +
-            '<link rel="stylesheet" href="http://cdn.njosnavel.in/framework/bootstrap3/css/bootstrap-container-new.min.css"/>' +
-
-            '<h1>OKAPI</h1><p>Upload a .CSV</p>' +
+        reply('<h1>OKAPI</h1><p>Upload a .CSV</p>' +
 
             '<form action="/uploader" method="post" enctype="multipart/form-data">' +
             '<label for="name">Name</label><input name="name" type="text">' +
