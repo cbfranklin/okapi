@@ -1,7 +1,12 @@
-<h1>OKAPI</h1>
+<h1>GSA Generic API</h1>
+<ul><li><a href="/add">Add an API</a></li></ul>
+{{#if api}}
 <h2>Available APIs</h2>
-  <ul>
-  {{#each api}}
-      <li><a href="/api/{{name}}">{{name}}</a></li>
-  {{/each}}
-  </ul>
+<ul>
+{{#each api}}
+  <li><a href="/api/{{name}}">{{displayName}}</a></li>
+{{/each}}
+</ul>
+{{else}}
+<h2>No APIs Yet</h2>
+{{/if}}

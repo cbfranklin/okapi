@@ -1,12 +1,14 @@
 var Hapi = require('hapi');
 var Handlebars = require('handlebars');
 var Fs = require('fs-extra');
+var Moment = require('moment');
 
 
 var Storage = {
     newAPI: function(obj) {
         console.log(Storage.storage, obj, Storage.storage.api)
         Storage.storage.api[obj.name] = obj;
+        Storage.storage.api[obj.name].added = Moment().format();
         Storage.store();
         console.log('NEW API')
     },
@@ -40,7 +42,7 @@ Fs.exists(__dirname + '/data', function(does) {
         if (does) {
             Fs.readFile(__dirname + '/data/data.json', 'utf8', function(err, data) {
                 Storage.storage = JSON.parse(data);
-                console.log('STORAGE.STORAGE POPULATED FROM DATA.JSON');
+                console.log('LOADED DATA.JSON');
             });
         } else {
             initAndStore();
@@ -58,7 +60,7 @@ Fs.exists(__dirname + '/data', function(does) {
 
 var server = Hapi.createServer('0.0.0.0', +process.env.PORT || 3000);
 
-console.log('hellokapi');
+console.log('HELLOKAPI');
 
 server.views({
     engines: {
@@ -93,7 +95,7 @@ controller.api.keyValue = {
                         name: api,
                         source: 'GSA.gov Generic API',
                         query: {},
-                        totalResults: 0
+                        'total-results': 0
                     },
                     results: [],
                 }
@@ -103,7 +105,7 @@ controller.api.keyValue = {
                 for (i = 0; i < data.csvRows.length; i++) {
                     if (data.csvRows[i][key] === value) {
                         results.results.push(data.csvRows[i]);
-                        results.meta.totalResults += 1;
+                        results.meta['total-results'] += 1;
                     }
                 }
                 reply(results);
@@ -114,18 +116,62 @@ controller.api.keyValue = {
     }
 }
 
+controller.api.values = {
+    handler: function(req, reply) {
+        var api = req.params.api,
+            property = req.params.property,
+            values = [];
+        console.log(property)
+        Fs.readFile(__dirname + '/data/' + api + '/' + api + '.json', 'utf8', function(err, data) {
+            if (err) {
+                console.log('Error: ' + err);
+                return;
+            }
+            json = JSON.parse(data);
+            json = json.csvRows
+            for (i in json) {
+                if (values.indexOf(json[i][property]) === -1) {
+                    values.push(json[i][property])
+                }
+            }
+            values = values.sort();
+
+            if (req.query.callback) {
+                reply(req.query.callback + '({"values":' + JSON.stringify(values) + '});')
+            } else {
+                reply(values)
+            }
+
+        });
+
+    }
+}
 controller.api.queryString = {
     handler: function(req, reply) {
 
         var api = req.params.api,
-            query = req.query;
+            query = req.query,
+            queryStart = 0,
+            queryEnd = Infinity,
+            jsonp,
+            callback;
 
         if (Storage.storage.api[api]) {
             if (Object.size(query) === 0) {
-                reply('<h1>GSA Generic API</h1><h2>' + Storage.storage.api[api].displayName + '</h2><ul><li><a href="./' + api + '/delete">Delete this API</a></li></ul>');
+                Fs.readFile(__dirname + '/data/' + api + '/' + api + '_table.html', 'utf8', function(err, table) {
+                    reply('<link rel="stylesheet" type="text/css" href="//cdn.datatables.net/1.9.4/css/jquery.dataTables.css">' +
+                        '<script type="text/javascript" language="javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>' +
+                        '<script type="text/javascript" language="javascript" src="//cdn.datatables.net/1.9.4/js/jquery.dataTables.js"></script>' +
+                        '<script type="text/javascript">$(document).ready(function() {$("table").dataTable( {"sScrollY": "80%","bPaginate": false,"bScrollCollapse": true} );} );</script>' +
+                        '<h1>GSA Generic API</h1><h2>' + Storage.storage.api[api].displayName + '</h2><ul><li><a href="./' + api + '/delete">Delete this API</a></li></ul><br>' + table);
+                });
+
+
             } else {
 
                 console.log(api, query);
+
+                var count = 0;
 
                 Fs.readFile(__dirname + '/data/' + api + '/' + api + '.json', 'utf8', function(err, data) {
                     if (err) {
@@ -138,10 +184,35 @@ controller.api.queryString = {
                             name: api,
                             source: 'GSA.gov Generic API',
                             query: query,
-                            totalResults: 0
+                            'total-results': 0
                         },
                         results: [],
                     }
+                    //START AND END POSITIONS
+                    if (query.hasOwnProperty('start')) {
+                        var start = parseFloat(query['start']);
+                        queryStart = start - 1;
+                        console.log('queryStart' + queryStart)
+                        results.meta['start'] = start;
+                        delete query['start'];
+                    }
+                    if (query.hasOwnProperty('end')) {
+                        var end = parseFloat(query['end'])
+                        queryEnd = end + 1;
+                        console.log('queryEnd' + queryEnd)
+                        results.meta['end'] = end;
+                        delete query['end'];
+                    }
+
+                    if (query.callback) {
+                        jsonp = true;
+                        console.log('jsonp')
+                        console.log(query.callback)
+                        callback = query.callback;
+                        delete query.callback;
+                        delete query._;
+                    }
+
                     //FIND IN ARRAY OF OBJECTS
                     Array.prototype.find = function(obj) {
 
@@ -182,14 +253,19 @@ controller.api.queryString = {
                             }
 
                             if (match) {
-                                results.results.push(data.csvRows[i]);
-                                results.meta.totalResults += 1;
+                                count += 1;
+                                if (count > queryStart && count < queryEnd) {
+                                    results.results.push(data.csvRows[i]);
+                                }
+                                results.meta['total-results'] += 1;
                             }
                         }
                     };
 
                     data.csvRows.find(query);
-
+                    if (jsonp) {
+                        results = callback + '(' + JSON.stringify(results) + ');';
+                    }
                     reply(results);
                 });
             }
@@ -203,7 +279,7 @@ controller.api.baleted = {
     handler: function(req, reply) {
         var name = req.params.api;
         Storage.deleteAPI(name);
-        reply('Deleted API: ' + name + metaRefresh(3, '/'));
+        reply('<h2>Deleting API: ' + name + '</h2><img src="http://archive.njosnavel.in/stimpy.gif" />' + metaRefresh(3, '/'));
     }
 }
 
@@ -241,17 +317,48 @@ server.route({
 
                     csvConverter.on("end_parsed", function(json) {
                         console.log('CONVERTED TO JSON');
-                        json = JSON.stringify(json);
-                        Fs.writeFile(__dirname + '/data/' + name + '/' + name + '.json', json, function(err) {
+                        var stringified = JSON.stringify(json);
+                        Fs.writeFile(__dirname + '/data/' + name + '/' + name + '.json', stringified, function(err) {
                             if (err) {
                                 console.log(err);
                             } else {
                                 console.log('SAVED AS JSON');
-                                Storage.newAPI({
-                                    name: name,
-                                    displayName: displayName
+                                var keys = Object.keys(json.csvRows[0]);
+
+                                var table = '<table><thead>';
+
+                                var keysLength = keys.length;
+
+                                for (i = 0; i < keysLength; i++) {
+                                    table += '<th>' + keys[i] + '</th>';
+                                }
+
+                                table += '</thead><tbody>'
+
+                                for (i = 0; i < json.csvRows.length; i++) {
+                                    table += '<tr>';
+                                    for (j = 0; j < keysLength; j++) {
+                                        if (json.csvRows[i][keys[j]] != 'undefined') {
+                                            table += '<td>' + json.csvRows[i][keys[j]] + '</td>';
+                                        }
+                                    }
+                                    table += '</tr>';
+                                }
+
+                                table += '</tbody></table>';
+
+
+                                Fs.writeFile(__dirname + '/data/' + name + '/' + name + '_table' + '.html', table, function(err) {
+                                    if (err) {
+                                        console.log(err);
+                                    } else {
+                                        Storage.newAPI({
+                                            name: name,
+                                            displayName: displayName
+                                        });
+                                        reply('<h1>GSA Generic API</h1><p>Your new API Lives Here: <a href="/api/' + name + '">' + displayName + '</a>.</p><ul><li><a href="/add">Add Another API</a></li></ul');
+                                    }
                                 });
-                                reply('<h1>GSA Generic API</h1><p>Your new API Lives Here: <a href="/api/' + name + '">' + displayName + '</a>.</p><ul><li><a href="/add">Add Another .CSV</a></li></ul');
                             }
                         });
                     });
@@ -259,6 +366,85 @@ server.route({
             }
         }
     }
+});
+
+
+
+//DIRECT FROM FILESYSTEM
+
+server.route({
+    method: 'GET',
+    path: '/convert/{name}',
+    config: {
+        handler: function(req, reply) {
+            var displayName = req.params.name;
+            var name = displayName.toLowerCase().replace(/ /g, '-');
+
+            var Converter = require("csvtojson").core.Converter;
+
+            var csvname = __dirname + '/data/' + name + '/' + name + '.csv';
+
+            var csvConverter = new Converter();
+            console.log('CONVERTING...');
+            csvConverter.from(csvname);
+
+            csvConverter.on("end_parsed", function(json) {
+                console.log('CONVERTED TO JSON');
+                var stringified = JSON.stringify(json);
+                Fs.writeFile(__dirname + '/data/' + name + '/' + name + '.json', stringified, function(err) {
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        console.log('SAVED AS JSON');
+                        var keys = Object.keys(json.csvRows[0]);
+
+                        var table = '<table><thead>';
+
+                        var keysLength = keys.length;
+
+                        for (i = 0; i < keysLength; i++) {
+                            table += '<th>' + keys[i] + '</th>';
+                        }
+
+                        table += '</thead><tbody>'
+
+                        for (i = 0; i < json.csvRows.length; i++) {
+                            table += '<tr>';
+                            for (j = 0; j < keysLength; j++) {
+                                if (json.csvRows[i][keys[j]] != 'undefined') {
+                                    table += '<td>' + json.csvRows[i][keys[j]] + '</td>';
+                                }
+                            }
+                            table += '</tr>';
+                        }
+
+                        table += '</tbody></table>';
+
+
+                        Fs.writeFile(__dirname + '/data/' + name + '/' + name + '_table' + '.html', table, function(err) {
+                            if (err) {
+                                console.log(err);
+                            } else {
+                                Storage.newAPI({
+                                    name: name,
+                                    displayName: name
+                                });
+                                reply('<h1>GSA Generic API</h1><p>Your new API Lives Here: <a href="/api/' + name + '">' + name + '</a>.</p><ul><li><a href="/add">Add Another API</a></li></ul');
+                            }
+                        });
+                    }
+                });
+            });
+
+
+        }
+    }
+});
+
+server.route({
+    path: '/api/{api}/values/{property}',
+    method: 'GET',
+    config: controller.api.values
 });
 
 server.route({
@@ -298,11 +484,11 @@ server.route({
     method: 'GET',
     path: '/add',
     handler: function(req, reply) {
-        reply('<h1>GSA GENERIC API</h1><h2>Add a .CSV</h2>' +
+        reply('<h1>GSA Generic API</h1><h2>Add an API</h2>' +
             '<form action="/upload" method="post" enctype="multipart/form-data">' +
-            '<label for="name">Name</label><input name="name" type="text">' +
-            '<label for="file">File:</label>' +
-            '<input type="file" name="file" id="file"><br>' +
+            '<label for="name">Name</label><input name="name" type="text"><br><br>' +
+            '<label for="file">.CSV File:</label>' +
+            '<input type="file" name="file" id="file"><br><br>' +
             '<input type="submit" name="submit" value="Submit">' +
             '</form>');
     }
