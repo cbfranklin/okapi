@@ -289,7 +289,8 @@ server.route({
     config: {
         payload: {
             output: 'stream',
-            parse: true
+            parse: true,
+            maxBytes: 1048576 * 10,
         },
         handler: function(req, reply) {
             var displayName = req.payload.name;
@@ -370,7 +371,7 @@ server.route({
 
 
 
-//DIRECT FROM FILESYSTEM
+//DIRECT FROM FILESYSTEM (CSV)
 
 server.route({
     method: 'GET',
@@ -437,6 +438,63 @@ server.route({
             });
 
 
+        }
+    }
+});
+//DIRECT FROM JSON
+
+server.route({
+    method: 'GET',
+    path: '/convert-json/{name}',
+    config: {
+        handler: function(req, reply) {
+            var displayName = req.params.name;
+            var name = displayName.toLowerCase().replace(/ /g, '-');
+
+            Fs.readFile(__dirname+'/data/'+name+'/'+name+'.json', 'utf8', function(err, data) {
+                if (err) {
+                    console.log('ERROR: ' + err);
+                    return;
+                }
+                var json = JSON.parse(data);
+                console.log(json[0])
+                var keys = Object.keys(json[0]);
+
+                var table = '<table><thead>';
+
+                var keysLength = keys.length;
+
+                for (i = 0; i < keysLength; i++) {
+                    table += '<th>' + keys[i] + '</th>';
+                }
+
+                table += '</thead><tbody>'
+
+                for (i = 0; i < json.length; i++) {
+                    table += '<tr>';
+                    for (j = 0; j < keysLength; j++) {
+                        if (json[i][keys[j]] != 'undefined') {
+                            table += '<td>' + json[i][keys[j]] + '</td>';
+                        }
+                    }
+                    table += '</tr>';
+                }
+
+                table += '</tbody></table>';
+
+
+                Fs.writeFile(__dirname + '/data/' + name + '/' + name + '_table' + '.html', table, function(err) {
+                    if (err) {
+                        console.log(err);
+                    } else {
+                        Storage.newAPI({
+                            name: name,
+                            displayName: name
+                        });
+                        reply('<h1>GSA Generic API</h1><p>Your new API Lives Here: <a href="/api/' + name + '">' + name + '</a>.</p><ul><li><a href="/add">Add Another API</a></li></ul');
+                    }
+                });
+            });
         }
     }
 });

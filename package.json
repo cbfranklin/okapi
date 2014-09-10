@@ -7,5 +7,8 @@
     "test": "test"
   },
   "author": "Connor Franklin",
-  "license": "BSD-2-Clause"
+  "license": "BSD-2-Clause",
+  "dependencies": {
+    "tough-cookie": "^0.12.1"
+  }
 }
